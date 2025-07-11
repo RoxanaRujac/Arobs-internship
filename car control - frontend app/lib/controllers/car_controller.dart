@@ -28,7 +28,7 @@ class CarController extends ChangeNotifier {
 
   // Initialize WebSocket connection and listeners
   Future<void> _initializeWebSocket() async {
-    print('🚀 Initializing WebSocket connection...');
+   // print('🚀 Initializing WebSocket connection...');
     
     // Initialize the WebSocket service
     await CarCommunicationService.initialize();

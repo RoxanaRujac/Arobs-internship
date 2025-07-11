@@ -57,7 +57,7 @@ class _CarControlScreenState extends State<CarControlScreen> {
                   const SizedBox(height: 4),
                   
                   Expanded(
-                    flex: 6,
+                    flex: 7,
                     child: ControlPanel(
                       carData: carData,
                       controller: _carController,

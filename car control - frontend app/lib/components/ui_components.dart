@@ -25,15 +25,13 @@ class DirectionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final buttonSize = size ?? 56.0;
-    final iconSize = buttonSize * 0.5; // Icon size is 50% of button size
-    
+    final iconSize = buttonSize; // Icon size is 70% of button size
+
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: isEnabled ? (_) => onPressStart() : null,
       onTapUp: isEnabled ? (_) => onPressEnd() : null,
       onTapCancel: isEnabled ? () => onPressEnd() : null,
-      onPanDown: isEnabled ? (_) => onPressStart() : null,
-      onPanEnd: isEnabled ? (_) => onPressEnd() : null,
-      onPanCancel: isEnabled ? () => onPressEnd() : null,
       child: Container(
         width: buttonSize,
         height: buttonSize,
@@ -75,9 +73,10 @@ class DirectionControlPad extends StatefulWidget {
 class _DirectionControlPadState extends State<DirectionControlPad> {
   final Set<String> _pressedDirections = {};
   Timer? _continuousTimer;
+  bool _isDisposed = false;
   
   void _startDirection(String direction) {
-    if (!widget.isManualMode) return;
+    if (!widget.isManualMode || _isDisposed) return;
     
     setState(() {
       _pressedDirections.add(direction);
@@ -87,16 +86,26 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
     widget.onDirectionPressed(_pressedDirections);
     
     // Start continuous sending if not already started
-    if (_continuousTimer == null) {
+    if (_continuousTimer == null || !_continuousTimer!.isActive) {
       _continuousTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (_isDisposed) {
+          timer.cancel();
+          return;
+        }
+        
         if (_pressedDirections.isNotEmpty) {
           widget.onDirectionPressed(_pressedDirections);
+        } else {
+          timer.cancel();
+          _continuousTimer = null;
         }
       });
     }
   }
   
   void _stopDirection(String direction) {
+    if (_isDisposed) return;
+    
     setState(() {
       _pressedDirections.remove(direction);
     });
@@ -113,6 +122,7 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
   
   @override
   void dispose() {
+    _isDisposed = true;
     _continuousTimer?.cancel();
     super.dispose();
   }
@@ -129,14 +139,13 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
         final safeHeight = availableHeight - 10;
       
         final maxButtonFromWidth = (safeWidth - 20) / 2; // 20px minimum spacing
-        
         final maxButtonFromHeight = (safeHeight - 20) / 3; // 20px total spacing
         
         final buttonSize = (maxButtonFromWidth < maxButtonFromHeight ? maxButtonFromWidth : maxButtonFromHeight)
-            .clamp(35.0, 50.0); // Reduced max size to be safer
+            .clamp(57.0, 90.0); 
         
-        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(15.0, 40.0);
-        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(8.0, 16.0);
+        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(45.0, 80.0);
+        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(1.0, 1.0);
         
         return Container(
           padding: EdgeInsets.all(containerPadding),
@@ -145,61 +154,63 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
             borderRadius: AppTheme.containerBorderRadius,
           ),
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Up Arrow
-                DirectionButton(
-                  icon: Icons.keyboard_arrow_up,
-                  direction: 'forward',
-                  isEnabled: widget.isManualMode,
-                  isPressed: _pressedDirections.contains('forward'),
-                  onPressStart: () => _startDirection('forward'),
-                  onPressEnd: () => _stopDirection('forward'),
-                  size: buttonSize,
-                ),
-                SizedBox(height: verticalSpacing),
-                
-                // Left, Right Arrows
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DirectionButton(
-                      icon: Icons.keyboard_arrow_left,
-                      direction: 'left',
-                      isEnabled: widget.isManualMode,
-                      isPressed: _pressedDirections.contains('left'),
-                      onPressStart: () => _startDirection('left'),
-                      onPressEnd: () => _stopDirection('left'),
-                      size: buttonSize,
-                    ),
-                    SizedBox(width: horizontalSpacing),
-                    DirectionButton(
-                      icon: Icons.keyboard_arrow_right,
-                      direction: 'right',
-                      isEnabled: widget.isManualMode,
-                      isPressed: _pressedDirections.contains('right'),
-                      onPressStart: () => _startDirection('right'),
-                      onPressEnd: () => _stopDirection('right'),
-                      size: buttonSize,
-                    ),
-                  ],
-                ),
-                SizedBox(height: verticalSpacing),
-                
-                // Down Arrow
-                DirectionButton(
-                  icon: Icons.keyboard_arrow_down,
-                  direction: 'backward',
-                  isEnabled: widget.isManualMode,
-                  isPressed: _pressedDirections.contains('backward'),
-                  onPressStart: () => _startDirection('backward'),
-                  onPressEnd: () => _stopDirection('backward'),
-                  size: buttonSize,
-                ),
-              ],
+            child: IntrinsicHeight(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min, // Important: don't expand beyond content
+                children: [
+                  // Up Arrow
+                  DirectionButton(
+                    icon: Icons.keyboard_arrow_up,
+                    direction: 'forward',
+                    isEnabled: widget.isManualMode,
+                    isPressed: _pressedDirections.contains('forward'),
+                    onPressStart: () => _startDirection('forward'),
+                    onPressEnd: () => _stopDirection('forward'),
+                    size: buttonSize,
+                  ),
+                  SizedBox(height: verticalSpacing),
+                  
+                  // Left, Right Arrows
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DirectionButton(
+                        icon: Icons.keyboard_arrow_left,
+                        direction: 'left',
+                        isEnabled: widget.isManualMode,
+                        isPressed: _pressedDirections.contains('left'),
+                        onPressStart: () => _startDirection('left'),
+                        onPressEnd: () => _stopDirection('left'),
+                        size: buttonSize,
+                      ),
+                      SizedBox(width: horizontalSpacing),
+                      DirectionButton(
+                        icon: Icons.keyboard_arrow_right,
+                        direction: 'right',
+                        isEnabled: widget.isManualMode,
+                        isPressed: _pressedDirections.contains('right'),
+                        onPressStart: () => _startDirection('right'),
+                        onPressEnd: () => _stopDirection('right'),
+                        size: buttonSize,
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: verticalSpacing),
+                  
+                  // Down Arrow
+                  DirectionButton(
+                    icon: Icons.keyboard_arrow_down,
+                    direction: 'backward',
+                    isEnabled: widget.isManualMode,
+                    isPressed: _pressedDirections.contains('backward'),
+                    onPressStart: () => _startDirection('backward'),
+                    onPressEnd: () => _stopDirection('backward'),
+                    size: buttonSize,
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -285,6 +296,7 @@ class CustomToggleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Flexible(
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
           width: double.infinity,
@@ -356,15 +368,21 @@ class StatisticRow extends StatelessWidget {
       children: [
         Expanded(
           flex: 2,
-          child: Text(label, style: AppTheme.statLabelStyle),
+          child: Text(
+            label, 
+            style: AppTheme.statLabelStyle.copyWith(fontSize: 14), // Smaller font
+          ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), // Reduced padding
           decoration: BoxDecoration(
             color: AppTheme.lightGrey,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10), // Smaller radius
           ),
-          child: Text(value, style: AppTheme.statValueStyle),
+          child: Text(
+            value, 
+            style: AppTheme.statValueStyle.copyWith(fontSize: 13), // Smaller font
+          ),
         ),
       ],
     );

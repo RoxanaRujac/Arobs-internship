@@ -4,7 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 
 class CarCommunicationService {
-  static const String espIp = '192.168.4.1'; // Replace with your ESP32 IP
+  static const String espIp = '192.168.4.1';
   static const int espPort = 444;
   
   static WebSocketChannel? _channel;
@@ -68,6 +68,12 @@ class CarCommunicationService {
     }
   }
   
+
+//{"type": "connection", "status": "connected"}
+//{"type": "status", "speed": 15.5, "pwm": 75, "battery": 4.1}
+//{"type": "ack", "command": "FORWARD"}
+//{"type": "pong"}
+
   // Handle incoming messages from ESP32
   static void _handleMessage(dynamic message) {
     try {
@@ -78,7 +84,7 @@ class CarCommunicationService {
         case 'connection':
           _isConnected = true;
           _connectionController.add(true);
-          print('✅ ESP32 connection confirmed');
+          //print('✅ ESP32 connection confirmed');
           break;
           
         case 'status':
@@ -92,7 +98,7 @@ class CarCommunicationService {
           break;
           
         case 'ack':
-          print('✅ Command acknowledged: ${data['command'] ?? data['speed']}');
+          //print('✅ Command acknowledged: ${data['command'] ?? data['speed']}');
           break;
           
         case 'pong':
@@ -169,11 +175,11 @@ class CarCommunicationService {
     
     final command = _buildDirectionCommand(directions);
     
-    if (directions.isEmpty) {
-      print('📤 Sending STOP command');
-    } else {
-      print('📤 Sending directions: ${directions.join(', ')} -> $command');
-    }
+   // if (directions.isEmpty) {
+   //   print('📤 Sending STOP command');
+   // } else {
+   //   print('📤 Sending directions: ${directions.join(', ')} -> $command');
+   // }
     
     _sendMessage({
       'type': 'direction',
@@ -220,9 +226,9 @@ class CarCommunicationService {
       print('❌ Not connected to ESP32');
       return false;
     }
-    
-    print('📤 Sending speed: ${(speed * 100).round()}%');
-    
+
+    //_print('📤 Sending speed: ${(speed * 100).round()}%');
+
     _sendMessage({
       'type': 'speed',
       'speed': speed,
@@ -231,7 +237,7 @@ class CarCommunicationService {
     return true;
   }
   
-  // Get car status (now uses real-time stream)
+  // Get car status
   static Future<Map<String, dynamic>?> getCarStatus() async {
     if (!_isConnected) {
       // Try to connect if not connected
@@ -247,18 +253,18 @@ class CarCommunicationService {
       }
     }
     
-    // Return the latest status (this is now handled by the stream)
+    // Return the latest status
     return {
       'connected': _isConnected,
-      'speed': 0.0, // Will be updated via stream
-      'pwm': 0.0,   // Will be updated via stream
-      'battery': 3.9, // Will be updated via stream
+      'speed': 0.0, //  updated via stream
+      'pwm': 0.0,   
+      'battery': 3.9,
     };
   }
   
   // Initialize the service
   static Future<void> initialize() async {
-    print('🚀 Initializing Car Communication Service');
+    //print('🚀 Initializing Car Communication Service');
     await connect();
     
     // Listen to status updates and forward them
