@@ -174,12 +174,7 @@ class CarCommunicationService {
     }
     
     final command = _buildDirectionCommand(directions);
-    
-   // if (directions.isEmpty) {
-   //   print('📤 Sending STOP command');
-   // } else {
-   //   print('📤 Sending directions: ${directions.join(', ')} -> $command');
-   // }
+  
     
     _sendMessage({
       'type': 'direction',
@@ -226,8 +221,24 @@ class CarCommunicationService {
       print('❌ Not connected to ESP32');
       return false;
     }
+    speed *= 100; // Convert to percentage (0-100)
+    
+    if (speed > 0.0 && speed <= 25) {
+      speed = 25; // Cap speed at 25%
+    }
 
-    //_print('📤 Sending speed: ${(speed * 100).round()}%');
+    if (speed > 25 && speed <= 50) {
+      speed = 50; // Cap speed at 50%
+    }
+
+    if (speed > 50 && speed <= 75) {
+      speed = 75; // Cap speed at 75%
+    }
+
+    if (speed > 75 && speed <= 100) {
+      speed = 100; // Cap speed at 100%
+    }
+    print('speed : $speed%');
 
     _sendMessage({
       'type': 'speed',

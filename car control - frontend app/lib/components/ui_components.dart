@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:car/theme/app_theme.dart';
+import 'package:flutter_joystick/flutter_joystick.dart';
 import 'dart:async';
 
 class DirectionButton extends StatelessWidget {
@@ -25,8 +26,8 @@ class DirectionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final buttonSize = size ?? 56.0;
-    final iconSize = buttonSize; // Icon size is 70% of button size
-
+    final iconSize = buttonSize * 0.5;
+    
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: isEnabled ? (_) => onPressStart() : null,
@@ -56,6 +57,166 @@ class DirectionButton extends StatelessWidget {
   }
 }
 
+class JoystickDirectionControl extends StatefulWidget {
+  final bool isManualMode;
+  final Function(Set<String>) onDirectionPressed;
+
+  const JoystickDirectionControl({
+    super.key,
+    required this.isManualMode,
+    required this.onDirectionPressed,
+  });
+
+  @override
+  State<JoystickDirectionControl> createState() => _JoystickDirectionControlState();
+}
+
+class _JoystickDirectionControlState extends State<JoystickDirectionControl> {
+  Set<String> _currentDirections = {};
+  Timer? _continuousTimer;
+  bool _isDisposed = false;
+  
+  static const double deadZone = 0.15;
+  
+  void _handleJoystickMove(StickDragDetails details) {
+    if (!widget.isManualMode || _isDisposed) return;
+    
+    final x = details.x; 
+    final y = details.y; 
+    
+    // Convert joystick coordinates to direction set
+    Set<String> newDirections = {};
+    
+    // Check vertical movement (y-axis)
+    if (y < -deadZone) {
+      newDirections.add('forward'); // Up on joystick = forward
+    } else if (y > deadZone) {
+      newDirections.add('backward'); // Down on joystick = backward
+    }
+    
+    // Check horizontal movement (x-axis)
+    if (x < -deadZone) {
+      newDirections.add('left'); // Left on joystick = left
+    } else if (x > deadZone) {
+      newDirections.add('right'); // Right on joystick = right
+    }
+    
+    // Only update if directions changed
+    if (_currentDirections != newDirections) {
+      setState(() {
+        _currentDirections = newDirections;
+      });
+      
+      // Send immediately
+      widget.onDirectionPressed(_currentDirections);
+      
+      // Start continuous sending if not already started and we have directions
+      if (newDirections.isNotEmpty && (_continuousTimer == null || !_continuousTimer!.isActive)) {
+        _continuousTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+          if (_isDisposed) {
+            timer.cancel();
+            return;
+          }
+          
+          if (_currentDirections.isNotEmpty) {
+            widget.onDirectionPressed(_currentDirections);
+          } else {
+            timer.cancel();
+            _continuousTimer = null;
+          }
+        });
+      }
+    }
+  }
+  
+  void _handleJoystickEnd() {
+    if (_isDisposed) return;
+    
+    setState(() {
+      _currentDirections.clear();
+    });
+    
+    // Send stop command
+    widget.onDirectionPressed(_currentDirections);
+    
+    // Stop continuous timer
+    _continuousTimer?.cancel();
+    _continuousTimer = null;
+  }
+  
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _continuousTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final containerPadding = 16.0;
+        final availableWidth = constraints.maxWidth - (containerPadding * 2);
+        final availableHeight = constraints.maxHeight - (containerPadding * 2);
+        
+        final joystickSize = (availableWidth < availableHeight ? availableWidth : availableHeight)
+            .clamp(120.0, 200.0);
+        
+        return Container(
+          padding: EdgeInsets.all(containerPadding),
+          decoration: BoxDecoration(
+            color: AppTheme.lightGrey,
+            borderRadius: AppTheme.containerBorderRadius,
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Joystick
+                Container(
+                  width: joystickSize,
+                  height: joystickSize,
+                  child: Joystick(
+                    mode: JoystickMode.all,
+                    listener: (details) {
+                      if (widget.isManualMode) {
+                        _handleJoystickMove(details);
+                      }
+                    },
+                    period: const Duration(milliseconds: 50), // Faster response
+                    onStickDragEnd: _handleJoystickEnd,
+                    includeInitialAnimation: false,
+                    base: JoystickBase(
+                      decoration: JoystickBaseDecoration(
+                        color: widget.isManualMode ? AppTheme.primaryGreen : AppTheme.greyContainer,
+                        drawOuterCircle: true,
+                        drawInnerCircle: true,
+                        boxShadowColor: Colors.black.withOpacity(0.1),
+                       ),
+                      arrowsDecoration: JoystickArrowsDecoration(
+      
+                        enableAnimation: false, 
+                      ),
+                    ),
+                    stick: JoystickStick(
+                      decoration: JoystickStickDecoration(
+                        color: widget.isManualMode ? AppTheme.darkGreen : Colors.grey,
+                        shadowColor: Colors.black.withOpacity(0.2),
+                      ),
+                    ),
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Keep the original DirectionControlPad for backward compatibility
 class DirectionControlPad extends StatefulWidget {
   final bool isManualMode;
   final Function(Set<String>) onDirectionPressed;
@@ -142,10 +303,10 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
         final maxButtonFromHeight = (safeHeight - 20) / 3; // 20px total spacing
         
         final buttonSize = (maxButtonFromWidth < maxButtonFromHeight ? maxButtonFromWidth : maxButtonFromHeight)
-            .clamp(57.0, 90.0); 
+            .clamp(60.0, 80.0); // Larger buttons for easier touch control
         
-        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(45.0, 80.0);
-        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(1.0, 1.0);
+        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(35.0, 70.0);
+        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(20.0, 35.0);
         
         return Container(
           padding: EdgeInsets.all(containerPadding),

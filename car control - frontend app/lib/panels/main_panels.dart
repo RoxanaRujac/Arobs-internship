@@ -57,12 +57,12 @@ class ControlPanel extends StatelessWidget {
               child: Text('Direction', style: AppTheme.labelStyle),
             ),
             
-            // Direction Controls - Now responsive with continuous control
+            // Joystick Direction Controls - Now using joystick instead of buttons
             Expanded(
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: DirectionControlPad(
+                child: JoystickDirectionControl(
                   isManualMode: carData.isManualMode,
                   onDirectionPressed: (directions) async {
                     final success = await controller.sendDirections(directions);

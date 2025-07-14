@@ -28,7 +28,6 @@ class CarController extends ChangeNotifier {
 
   // Initialize WebSocket connection and listeners
   Future<void> _initializeWebSocket() async {
-   // print('🚀 Initializing WebSocket connection...');
     
     // Initialize the WebSocket service
     await CarCommunicationService.initialize();
@@ -122,11 +121,11 @@ class CarController extends ChangeNotifier {
     try {
       final success = await CarCommunicationService.sendSpeed(speed);
       if (success) {
-        print('✅ Speed command sent successfully: ${(speed * 100).round()}%');
+        //print('✅ Speed command sent successfully: ${(speed * 100).round()}%');
       }
       return success;
     } catch (e) {
-      print('❌ Failed to send speed: $e');
+      //print('❌ Failed to send speed: $e');
       return false;
     }
   }
@@ -139,7 +138,7 @@ class CarController extends ChangeNotifier {
 
   // Reconnect to ESP32
   Future<bool> reconnect() async {
-    print('🔄 Manually reconnecting to ESP32...');
+    //print('🔄 Manually reconnecting to ESP32...');
     return await CarCommunicationService.connect();
   }
 
