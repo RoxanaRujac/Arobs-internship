@@ -495,23 +495,47 @@ class CustomSpeedSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        activeTrackColor: AppTheme.darkGreen,
-        inactiveTrackColor: AppTheme.lightGreen,
-        thumbColor: AppTheme.darkGreen,
-        thumbShape: const RoundSliderThumbShape(
-          enabledThumbRadius: 12.0,
+    return Column(
+      children: [
+        
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppTheme.darkGreen,
+            inactiveTrackColor: AppTheme.lightGreen,
+            thumbColor: AppTheme.darkGreen,
+            thumbShape: const RoundSliderThumbShape(
+              enabledThumbRadius: 12.0,
+            ),
+            trackHeight: 8.0,
+            // Style for the discrete markers
+            tickMarkShape: const RoundSliderTickMarkShape(
+              tickMarkRadius: 3.0,
+            ),
+            activeTickMarkColor: AppTheme.darkGreen,
+            inactiveTickMarkColor: AppTheme.lightGreen,
+          ),
+          child: Slider(
+            value: value,
+            onChanged: onChanged,
+            onChangeEnd: onChangeEnd,
+            min: 0.0,
+            max: 1.0,
+            divisions: 4, // 0, 0.25, 0.5, 0.75, 1.0
+          ),
         ),
-        trackHeight: 8.0,
-      ),
-      child: Slider(
-        value: value,
-        onChanged: onChanged,
-        onChangeEnd: onChangeEnd,
-        min: 0.0,
-        max: 1.0,
-      ),
+        
+        // Speed labels below slider
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('0%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text('25%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text('50%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text('75%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text('100%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+          ],
+        ),
+      ],
     );
   }
 }

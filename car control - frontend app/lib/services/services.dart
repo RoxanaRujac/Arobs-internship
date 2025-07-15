@@ -84,7 +84,6 @@ class CarCommunicationService {
         case 'connection':
           _isConnected = true;
           _connectionController.add(true);
-          //print('✅ ESP32 connection confirmed');
           break;
           
         case 'status':
@@ -98,7 +97,6 @@ class CarCommunicationService {
           break;
           
         case 'ack':
-          //print('✅ Command acknowledged: ${data['command'] ?? data['speed']}');
           break;
           
         case 'pong':
@@ -222,22 +220,6 @@ class CarCommunicationService {
       return false;
     }
     speed *= 100; // Convert to percentage (0-100)
-    
-    if (speed > 0.0 && speed <= 25) {
-      speed = 25; // Cap speed at 25%
-    }
-
-    if (speed > 25 && speed <= 50) {
-      speed = 50; // Cap speed at 50%
-    }
-
-    if (speed > 50 && speed <= 75) {
-      speed = 75; // Cap speed at 75%
-    }
-
-    if (speed > 75 && speed <= 100) {
-      speed = 100; // Cap speed at 100%
-    }
     print('speed : $speed%');
 
     _sendMessage({
@@ -251,7 +233,6 @@ class CarCommunicationService {
   // Get car status
   static Future<Map<String, dynamic>?> getCarStatus() async {
     if (!_isConnected) {
-      // Try to connect if not connected
       await connect();
       
       if (!_isConnected) {
@@ -275,12 +256,8 @@ class CarCommunicationService {
   
   // Initialize the service
   static Future<void> initialize() async {
-    //print('🚀 Initializing Car Communication Service');
     await connect();
-    
-    // Listen to status updates and forward them
     statusStream.listen((status) {
-      // Status updates are automatically handled by the stream
     });
   }
   
