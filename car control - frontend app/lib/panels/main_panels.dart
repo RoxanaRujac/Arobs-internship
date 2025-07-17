@@ -57,7 +57,7 @@ class ControlPanel extends StatelessWidget {
               child: Text('Direction', style: AppTheme.labelStyle),
             ),
             
-            // Joystick Direction Controls - Now using joystick instead of buttons
+            // Joystick Direction Controls
             Expanded(
               flex: 3,
               child: Padding(
@@ -67,7 +67,7 @@ class ControlPanel extends StatelessWidget {
                   onDirectionPressed: (directions) async {
                     final success = await controller.sendDirections(directions);
                     if (!success && directions.isNotEmpty) {
-                      onShowMessage('Failed to send direction commands');
+                      //onShowMessage('Failed to send direction commands');
                     }
                   },
                 ),
