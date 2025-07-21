@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/car_data.dart';
 import '../services/services.dart';
-import 'package:flutter_vibrate/flutter_vibrate.dart';
+
 
 class CarController extends ChangeNotifier {
   CarData _carData = const CarData(
@@ -183,12 +183,4 @@ class CarController extends ChangeNotifier {
     
     super.dispose();
   }
-
-void vibrate() async {
-  final canVibrate = await Vibrate.canVibrate;
-  if (canVibrate) {
-    Vibrate.feedback(FeedbackType.success);
-  }
-}
-
 }

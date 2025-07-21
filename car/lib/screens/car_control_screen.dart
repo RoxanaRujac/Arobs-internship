@@ -68,7 +68,7 @@ class _CarControlScreenState extends State<CarControlScreen> {
                   const SizedBox(height: 16),
 
                   // Stats Section
-                  const SectionTitleBar(title: 'Stats'),
+                  const SectionTitleBar(title: 'Dashboard'),
                   const SizedBox(height: 4),
 
                   Expanded(
