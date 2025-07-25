@@ -1,283 +1,284 @@
-import 'dart:convert';
 import 'dart:async';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/status.dart' as status;
+import 'dart:convert';
+import 'dart:io';
+import 'dart:developer' as developer;
+import 'dart:typed_data';
 
 class CarCommunicationService {
   static const String espIp = '192.168.4.1';
   static const int espPort = 444;
-  
-  static WebSocketChannel? _channel;
+
+  static int commandNumber = 0;
+  static Socket? _socket;
   static bool _isConnected = false;
   static bool _isConnecting = false;
-  
-  // Stream controllers for real-time data
-  static final StreamController<Map<String, dynamic>> _statusController = 
+
+  static final _statusController =
       StreamController<Map<String, dynamic>>.broadcast();
-  
-  static final StreamController<bool> _connectionController = 
-      StreamController<bool>.broadcast();
-  
-  // Timers for connection management
+  static final _connectionController = StreamController<bool>.broadcast();
+
   static Timer? _reconnectTimer;
   static Timer? _pingTimer;
-  
-  // Getters for streams
-  static Stream<Map<String, dynamic>> get statusStream => _statusController.stream;
+
+  static Stream<Map<String, dynamic>> get statusStream =>
+      _statusController.stream;
   static Stream<bool> get connectionStream => _connectionController.stream;
   static bool get isConnected => _isConnected;
-  
-  // Initialize WebSocket connection
+
+  static bool _emergencyLightsOn = false;
+  static bool get emergencyLightsOn => _emergencyLightsOn;
+
+  static Future<bool> toggleEmergencyLights() async {
+    if (!_isConnected) {
+      developer.log('❌ Not connected');
+      return false;
+    }
+
+    _emergencyLightsOn = !_emergencyLightsOn;
+
+    _send({
+      'type': 'emergency_lights',
+      'state': _emergencyLightsOn ? 'on' : 'off',
+    });
+
+    //print('🚨 Emergency lights ${_emergencyLightsOn ? 'ON' : 'OFF'}');
+    return true;
+  }
+
+  static Future<bool> setEmergencyLights(bool enabled) async {
+    if (!_isConnected) {
+      developer.log('❌ Not connected');
+      return false;
+    }
+
+    _emergencyLightsOn = enabled;
+
+    _send({'type': 'emergency_lights', 'state': enabled ? 'on' : 'off'});
+
+    developer.log('🚨 Emergency lights ${enabled ? 'ON' : 'OFF'}');
+    return true;
+  }
+
+  static Future<bool> park() async {
+    if (!_isConnected) {
+      developer.log('❌ Not connected');
+      return false;
+    }
+
+    _send({'type': 'park'});
+
+    developer.log('✅ Car parked successfully');
+    return true;
+  } 
+
+  static Future<bool> mode(String mode) async {
+    if (!_isConnected) { 
+      developer.log('❌ Not connected');
+      return false;
+    }
+
+    _send({'type': 'mode', 'mode': mode});
+
+    developer.log('✅ Mode set to $mode');
+    return true;
+  }
+
   static Future<bool> connect() async {
     if (_isConnected || _isConnecting) return _isConnected;
-    
     _isConnecting = true;
-    
+
     try {
-      print('🔄 Connecting to ESP32 at ws://$espIp:$espPort');
-      
-      _channel = WebSocketChannel.connect(
-        Uri.parse('ws://$espIp:$espPort'),
+      developer.log('🔄 Connecting to ESP32 at $espIp:$espPort');
+      _socket = await Socket.connect(
+        espIp,
+        espPort,
+        timeout: Duration(seconds: 5),
       );
-      
-      // Listen for messages
-      _channel!.stream.listen(
+      _isConnected = true;
+      _connectionController.add(true);
+
+      _socket!.listen(
         _handleMessage,
         onError: _handleError,
         onDone: _handleDisconnection,
       );
-      
-      // Wait a bit to see if connection is established
-      await Future.delayed(const Duration(seconds: 2));
-      
-      if (_isConnected) {
-        _startPingTimer();
-        print('✅ Connected to ESP32');
-      }
-      
-      _isConnecting = false;
-      return _isConnected;
-      
+
+      _startPingTimer();
+      print('✅ Connected to ESP32');
     } catch (e) {
       print('❌ Failed to connect to ESP32: $e');
-      _isConnecting = false;
       _isConnected = false;
       _connectionController.add(false);
       _startReconnectTimer();
-      return false;
     }
+
+    _isConnecting = false;
+    return _isConnected;
   }
-  
 
-//{"type": "connection", "status": "connected"}
-//{"type": "status", "speed": 15.5, "pwm": 75, "battery": 4.1}
-//{"type": "ack", "command": "FORWARD"}
-//{"type": "pong"}
-
-  // Handle incoming messages from ESP32
-  static void _handleMessage(dynamic message) {
+  static void _handleMessage(Uint8List data) {
     try {
-      final data = jsonDecode(message);
-      final type = data['type'];
-      
-      switch (type) {
-        case 'connection':
-          _isConnected = true;
-          _connectionController.add(true);
-          break;
-          
-        case 'status':
-          // Forward status updates to the app
-          _statusController.add({
-            'connected': true,
-            'speed': data['speed']?.toDouble() ?? 0.0,
-            'pwm': data['pwm']?.toDouble() ?? 0.0,
-            'battery': data['battery']?.toDouble() ?? 3.9,
-          });
-          break;
-          
-        case 'ack':
-          break;
-          
-        case 'pong':
-          // Keep-alive response
-          break;
-          
-        default:
-          print('📥 Received unknown message type: $type');
+      final raw = utf8.decode(data);
+      final messages = raw.split('\n');
+
+      for (final msg in messages) {
+        if (msg.trim().isEmpty) continue;
+
+        final json = jsonDecode(msg);
+        final type = json['type'];
+
+        switch (type) {
+          case 'connection':
+            _isConnected = true;
+            _connectionController.add(true);
+            break;
+          case 'status':
+            _statusController.add({
+              'connected': true,
+              'speed': json['speed']?.toDouble() ?? 0.0,
+              'pwm': json['pwm']?.toDouble() ?? 0.0,
+              'battery': json['battery']?.toDouble() ?? 3.9,
+            });
+            break;
+          case 'pong':
+            break;
+          default:
+            developer.log('📥 Unknown type: $type');
+        }
       }
     } catch (e) {
-      print('❌ Error parsing message: $e');
+      developer.log('❌ Error parsing message: $e');
     }
   }
-  
-  // Handle connection errors
+
   static void _handleError(error) {
-    print('❌ WebSocket error: $error');
+    developer.log('❌ TCP error: $error');
     _isConnected = false;
     _connectionController.add(false);
     _startReconnectTimer();
   }
-  
-  // Handle disconnection
+
   static void _handleDisconnection() {
-    print('🔌 Disconnected from ESP32');
+    developer.log('🔌 Disconnected');
     _isConnected = false;
     _connectionController.add(false);
     _pingTimer?.cancel();
     _startReconnectTimer();
   }
-  
-  // Start automatic reconnection
+
   static void _startReconnectTimer() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+    _reconnectTimer = Timer.periodic(Duration(seconds: 5), (timer) {
       if (!_isConnected && !_isConnecting) {
-        print('🔄 Attempting to reconnect...');
+        developer.log('🔄 Reconnecting...');
         connect();
       } else if (_isConnected) {
         timer.cancel();
       }
     });
   }
-  
-  // Start ping timer to keep connection alive
+
   static void _startPingTimer() {
     _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+    _pingTimer = Timer.periodic(Duration(seconds: 10), (_) {
       if (_isConnected) {
-        _sendMessage({'type': 'ping'});
-      } else {
-        timer.cancel();
+        _send({'type': 'ping'});
       }
     });
   }
-  
-  // Send message to ESP32
-  static void _sendMessage(Map<String, dynamic> message) {
-    if (_channel != null && _isConnected) {
+
+  static void _send(Map<String, dynamic> message) {
+    if (_socket != null && _isConnected) {
       try {
-        _channel!.sink.add(jsonEncode(message));
+        final encoded = jsonEncode(message) + '\n'; // important!
+        _socket!.write(encoded);
+
+        if (!message.containsValue('ping')) {
+          commandNumber++;
+          print('➡️ Sent message: $encoded');
+          print('Sending message number: $commandNumber');
+        }
+        
+        _socket!.flush();
+        
       } catch (e) {
-        print('❌ Error sending message: $e');
+        developer.log('❌ Failed to send message: $e');
       }
     }
   }
-  
-  // Send direction commands
+
   static Future<bool> sendDirections(Set<String> directions) async {
     if (!_isConnected) {
-      print('❌ Not connected to ESP32');
+      developer.log('❌ Not connected');
       return false;
     }
-    
+
     final command = _buildDirectionCommand(directions);
-  
-    
-    _sendMessage({
+    print('➡️ Sending command: $command');
+
+    _send({
       'type': 'direction',
       'command': command,
       'directions': directions.toList(),
     });
-    
+
     return true;
   }
-  
-  // Build direction command string
+
   static String _buildDirectionCommand(Set<String> directions) {
     if (directions.isEmpty) return 'STOP';
-    
-    if (directions.contains('forward') && directions.contains('left')) {
+    if (directions.contains('forward') && directions.contains('left'))
       return 'FORWARD_LEFT';
-    } else if (directions.contains('forward') && directions.contains('right')) {
+    if (directions.contains('forward') && directions.contains('right'))
       return 'FORWARD_RIGHT';
-    } else if (directions.contains('backward') && directions.contains('left')) {
+    if (directions.contains('backward') && directions.contains('left'))
       return 'BACKWARD_LEFT';
-    } else if (directions.contains('backward') && directions.contains('right')) {
+    if (directions.contains('backward') && directions.contains('right'))
       return 'BACKWARD_RIGHT';
-    } else if (directions.contains('forward')) {
-      return 'FORWARD';
-    } else if (directions.contains('backward')) {
-      return 'BACKWARD';
-    } else if (directions.contains('left')) {
-      return 'LEFT';
-    } else if (directions.contains('right')) {
-      return 'RIGHT';
-    }
-    
+    if (directions.contains('forward')) return 'FORWARD';
+    if (directions.contains('backward')) return 'BACKWARD';
+    if (directions.contains('left')) return 'LEFT';
+    if (directions.contains('right')) return 'RIGHT';
     return 'STOP';
   }
-  
-  // Legacy method for backward compatibility
+
   static Future<bool> sendDirection(String direction) async {
     return sendDirections({direction});
   }
-  
-  // Send speed command
-  static Future<bool> sendSpeed(double speed) async {
-    if (!_isConnected) {
-      print('❌ Not connected to ESP32');
-      return false;
-    }
-    speed *= 100; // Convert to percentage (0-100)
-    print('speed : $speed%');
 
-    _sendMessage({
-      'type': 'speed',
-      'speed': speed,
-    });
-    
+  static Future<bool> sendSpeed(double speed) async {
+    if (!_isConnected) return false;
+    speed *= 100;
+    developer.log('Speed: $speed%');
+    _send({'type': 'speed', 'speed': speed});
     return true;
   }
-  
-  // Get car status
+
   static Future<Map<String, dynamic>?> getCarStatus() async {
     if (!_isConnected) {
       await connect();
-      
       if (!_isConnected) {
-        return {
-          'connected': false,
-          'speed': 0.0,
-          'pwm': 0.0,
-          'battery': 0.0,
-        };
+        return {'connected': false, 'speed': 0.0, 'pwm': 0.0, 'battery': 0.0};
       }
     }
-    
-    // Return the latest status
-    return {
-      'connected': _isConnected,
-      'speed': 0.0, //  updated via stream
-      'pwm': 0.0,   
-      'battery': 3.9,
-    };
+    return {'connected': true, 'speed': 0.0, 'pwm': 0.0, 'battery': 3.9};
   }
-  
-  // Initialize the service
+
   static Future<void> initialize() async {
     await connect();
-    statusStream.listen((status) {
-    });
+    statusStream.listen((status) {});
   }
-  
-  // Disconnect and cleanup
+
   static Future<void> disconnect() async {
-    print('🔌 Disconnecting from ESP32');
-    
+    developer.log('🔌 Disconnecting');
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
-    
-    if (_channel != null) {
-      await _channel!.sink.close(status.goingAway);
-      _channel = null;
-    }
-    
+    await _socket?.close();
+    _socket = null;
     _isConnected = false;
     _connectionController.add(false);
   }
-  
-  // Dispose resources
+
   static void dispose() {
     disconnect();
     _statusController.close();

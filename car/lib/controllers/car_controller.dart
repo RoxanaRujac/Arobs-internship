@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/car_data.dart';
 import '../services/services.dart';
-
+import 'dart:developer' as developer;
 
 class CarController extends ChangeNotifier {
   CarData _carData = const CarData(
@@ -22,6 +22,54 @@ class CarController extends ChangeNotifier {
 
   CarData get carData => _carData;
 
+  bool _emergencyLightsOn = false;
+  bool get emergencyLightsOn => _emergencyLightsOn;
+
+Future<bool> toggleEmergencyLights() async {
+    try {
+      final success = await CarCommunicationService.toggleEmergencyLights();
+      if (success) {
+        _emergencyLightsOn = CarCommunicationService.emergencyLightsOn;
+        notifyListeners(); // Notify UI to update
+        developer.log('✅ Emergency lights toggled: ${_emergencyLightsOn ? 'ON' : 'OFF'}');
+      }
+      return success;
+    } catch (e) {
+      developer.log('❌ Failed to toggle emergency lights: $e');
+      return false;
+    }
+  }
+
+  // Set emergency lights state directly
+  Future<bool> setEmergencyLights(bool enabled) async {
+    try {
+      final success = await CarCommunicationService.setEmergencyLights(enabled);
+      if (success) {
+        _emergencyLightsOn = enabled;
+        notifyListeners(); // Notify UI to update
+        print('✅ Emergency lights set to: ${enabled ? 'ON' : 'OFF'}');
+      }
+      return success;
+    } catch (e) {
+      print('❌ Failed to set emergency lights: $e');
+      return false;
+    }
+  }
+ 
+  Future<bool> park() async {
+    try {
+      final success = await CarCommunicationService.park();
+      if (success) {
+        print('✅ Car parked successfully');
+      }
+      return success;
+    } catch (e) {
+      print('❌ Failed to park car: $e');
+      return false;
+    }
+  }
+
+
   // Initialize controller and start WebSocket connection
   void initialize() {
     _initializeWebSocket();
@@ -29,38 +77,37 @@ class CarController extends ChangeNotifier {
 
   // Initialize WebSocket connection and listeners
   Future<void> _initializeWebSocket() async {
-    
     // Initialize the WebSocket service
     await CarCommunicationService.initialize();
-    
+
     // Listen to connection status changes
-    _connectionSubscription = CarCommunicationService.connectionStream.listen(
-      (isConnected) {
-        if (!_isDisposed) {
-          updateCarData(_carData.copyWith(isConnected: isConnected));
-          if (isConnected) {
-            print('✅ WebSocket connected');
-          } else {
-            print('❌ WebSocket disconnected');
-          }
+    _connectionSubscription = CarCommunicationService.connectionStream.listen((
+      isConnected,
+    ) {
+      if (!_isDisposed) {
+        updateCarData(_carData.copyWith(isConnected: isConnected));
+        if (isConnected) {
+          print('✅ WebSocket connected');
+        } else {
+          print('❌ WebSocket disconnected');
         }
-      },
-    );
-    
+      }
+    });
+
     // Listen to real-time status updates
-    _statusSubscription = CarCommunicationService.statusStream.listen(
-      (status) {
-        if (!_isDisposed) {
-          updateCarData(_carData.copyWith(
+    _statusSubscription = CarCommunicationService.statusStream.listen((status) {
+      if (!_isDisposed) {
+        updateCarData(
+          _carData.copyWith(
             isConnected: status['connected'] ?? false,
             currentSpeed: status['speed'] ?? 0.0,
             pwmDutyCycle: status['pwm'] ?? 0.0,
             batteryVoltage: status['battery'] ?? 3.9,
-          ));
-        }
-      },
-    );
-    
+          ),
+        );
+      }
+    });
+
     // Fallback status updates for compatibility
     _startStatusUpdates();
   }
@@ -90,12 +137,12 @@ class CarController extends ChangeNotifier {
   // Send multiple direction commands to car (for simultaneous control)
   Future<bool> sendDirections(Set<String> directions) async {
     if (!_carData.isManualMode) {
-      print('❌ Cannot send directions in auto mode');
+      developer.log('❌ Cannot send directions in auto mode');
       return false;
     }
 
     _currentDirections = directions;
-    
+
     try {
       final success = await CarCommunicationService.sendDirections(directions);
       if (success) {
@@ -107,7 +154,7 @@ class CarController extends ChangeNotifier {
       }
       return success;
     } catch (e) {
-      print('❌ Failed to send directions: $e');
+      developer.log('❌ Failed to send directions: $e');
       return false;
     }
   }
@@ -121,12 +168,9 @@ class CarController extends ChangeNotifier {
   Future<bool> sendSpeedCommand(double speed) async {
     try {
       final success = await CarCommunicationService.sendSpeed(speed);
-      if (success) {
-        //print('✅ Speed command sent successfully: ${(speed * 100).round()}%');
-      }
+      if (success) {}
       return success;
     } catch (e) {
-      //print('❌ Failed to send speed: $e');
       return false;
     }
   }
@@ -137,15 +181,15 @@ class CarController extends ChangeNotifier {
   // Check connection status
   bool get isConnected => CarCommunicationService.isConnected;
 
-  // Reconnect to ESP32
   Future<bool> reconnect() async {
-    //print('🔄 Manually reconnecting to ESP32...');
     return await CarCommunicationService.connect();
   }
 
   // Start periodic status updates (fallback)
   void _startStatusUpdates() {
-    _statusUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    _statusUpdateTimer = Timer.periodic(const Duration(seconds: 5), (
+      timer,
+    ) async {
       if (_isDisposed) return;
 
       try {
@@ -153,16 +197,18 @@ class CarController extends ChangeNotifier {
         if (status != null && !_isDisposed) {
           // Only update if we don't have a WebSocket connection
           if (!CarCommunicationService.isConnected) {
-            updateCarData(_carData.copyWith(
-              isConnected: status['connected'] ?? false,
-              currentSpeed: (status['speed'] ?? 0.0).toDouble(),
-              pwmDutyCycle: (status['pwm'] ?? 0.0).toDouble(),
-              batteryVoltage: (status['battery'] ?? 3.9).toDouble(),
-            ));
+            updateCarData(
+              _carData.copyWith(
+                isConnected: status['connected'] ?? false,
+                currentSpeed: (status['speed'] ?? 0.0).toDouble(),
+                pwmDutyCycle: (status['pwm'] ?? 0.0).toDouble(),
+                batteryVoltage: (status['battery'] ?? 3.9).toDouble(),
+              ),
+            );
           }
         }
       } catch (e) {
-        print('❌ Failed to get car status: $e');
+        developer.log('❌ Failed to get car status: $e');
         if (!_isDisposed) {
           updateCarData(_carData.copyWith(isConnected: false));
         }
@@ -176,11 +222,11 @@ class CarController extends ChangeNotifier {
     _statusUpdateTimer?.cancel();
     _statusSubscription?.cancel();
     _connectionSubscription?.cancel();
-    
+
     // Stop all directions when disposing
     _currentDirections.clear();
     CarCommunicationService.sendDirections({});
-    
+
     super.dispose();
   }
 }

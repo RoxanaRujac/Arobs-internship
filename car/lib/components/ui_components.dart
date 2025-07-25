@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:car/theme/app_theme.dart';
 import 'package:flutter_joystick/flutter_joystick.dart';
-import 'dart:async';
+import 'dart:developer' as developer;
 
 class DirectionButton extends StatelessWidget {
   final IconData icon;
@@ -27,7 +27,7 @@ class DirectionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final buttonSize = size ?? 56.0;
     final iconSize = buttonSize * 0.5;
-    
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTapDown: isEnabled ? (_) => onPressStart() : null,
@@ -37,20 +37,20 @@ class DirectionButton extends StatelessWidget {
         width: buttonSize,
         height: buttonSize,
         decoration: BoxDecoration(
-          color: isEnabled 
-            ? (isPressed ? AppTheme.darkGreen : AppTheme.lightGrey)
-            : AppTheme.greyContainer,
+          color: isEnabled
+              ? (isPressed ? AppTheme.darkGreen : AppTheme.lightGrey)
+              : AppTheme.greyContainer,
           shape: BoxShape.circle,
-          border: isPressed 
-            ? Border.all(color: AppTheme.darkGreen, width: 2)
-            : null,
+          border: isPressed
+              ? Border.all(color: AppTheme.darkGreen, width: 2)
+              : null,
         ),
         child: Icon(
           icon,
           size: iconSize,
-          color: isEnabled 
-            ? (isPressed ? Colors.white : Colors.black54)
-            : Colors.grey,
+          color: isEnabled
+              ? (isPressed ? Colors.white : Colors.black54)
+              : Colors.grey,
         ),
       ),
     );
@@ -68,89 +68,81 @@ class JoystickDirectionControl extends StatefulWidget {
   });
 
   @override
-  State<JoystickDirectionControl> createState() => _JoystickDirectionControlState();
+  State<JoystickDirectionControl> createState() =>
+      _JoystickDirectionControlState();
 }
 
 class _JoystickDirectionControlState extends State<JoystickDirectionControl> {
   Set<String> _currentDirections = {};
-  Timer? _continuousTimer;
+  Set<String> _lastSentDirections = {}; // Track what was last sent
   bool _isDisposed = false;
-  
+
   static const double deadZone = 0.15;
-  
+
   void _handleJoystickMove(StickDragDetails details) {
     if (!widget.isManualMode || _isDisposed) return;
-    
-    final x = details.x; 
-    final y = details.y; 
-    
+
+    final x = details.x;
+    final y = details.y;
+
     // Convert joystick coordinates to direction set
     Set<String> newDirections = {};
-    
+
     // Check vertical movement (y-axis)
     if (y < -deadZone) {
       newDirections.add('forward'); // Up on joystick = forward
     } else if (y > deadZone) {
       newDirections.add('backward'); // Down on joystick = backward
     }
-    
+
     // Check horizontal movement (x-axis)
     if (x < -deadZone) {
       newDirections.add('left'); // Left on joystick = left
     } else if (x > deadZone) {
       newDirections.add('right'); // Right on joystick = right
     }
-    
-    // Only update if directions changed
-    if (_currentDirections != newDirections) {
+
+    if (_setEquals(newDirections, _lastSentDirections) == false) {
       setState(() {
         _currentDirections = newDirections;
       });
-      
-      // Send immediately
-      widget.onDirectionPressed(_currentDirections);
-      
-      // Start continuous sending if not already started and we have directions
-      if (newDirections.isNotEmpty && (_continuousTimer == null || !_continuousTimer!.isActive)) {
-        _continuousTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-          if (_isDisposed) {
-            timer.cancel();
-            return;
-          }
-          
-          if (_currentDirections.isNotEmpty) {
-            widget.onDirectionPressed(_currentDirections);
-          } else {
-            timer.cancel();
-            _continuousTimer = null;
-          }
-        });
-      }
+
+      // Send only once when direction changes
+      widget.onDirectionPressed(newDirections);
+      _lastSentDirections = Set.from(newDirections); // Update last sent
+
+      developer.log(
+        'Direction changed to: ${newDirections.isEmpty ? "STOP" : newDirections.join("+")}',
+      );
     }
   }
-  
+
   void _handleJoystickEnd() {
     if (_isDisposed) return;
-    
-    setState(() {
-      _currentDirections.clear();
-    });
-    
-    // Send stop command
-    widget.onDirectionPressed(_currentDirections);
-    
-    // Stop continuous timer
-    _continuousTimer?.cancel();
-    _continuousTimer = null;
+
+    if (_lastSentDirections.isNotEmpty) {
+      setState(() {
+        _currentDirections.clear();
+      });
+
+      // Send stop command
+      widget.onDirectionPressed(_currentDirections);
+      _lastSentDirections.clear();
+
+      developer.log('Direction changed to: STOP');
+    }
   }
-  
+
+  bool _setEquals<T>(Set<T> set1, Set<T> set2) {
+    if (set1.length != set2.length) return false;
+    return set1.containsAll(set2) && set2.containsAll(set1);
+  }
+
   @override
   void dispose() {
     _isDisposed = true;
-    _continuousTimer?.cancel();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -159,10 +151,13 @@ class _JoystickDirectionControlState extends State<JoystickDirectionControl> {
         final containerPadding = 16.0;
         final availableWidth = constraints.maxWidth - (containerPadding * 2);
         final availableHeight = constraints.maxHeight - (containerPadding * 2);
-        
-        final joystickSize = (availableWidth < availableHeight ? availableWidth : availableHeight)
-            .clamp(120.0, 200.0);
-        
+
+        final joystickSize =
+            (availableWidth < availableHeight
+                    ? availableWidth
+                    : availableHeight)
+                .clamp(120.0, 200.0);
+
         return Container(
           padding: EdgeInsets.all(containerPadding),
           decoration: BoxDecoration(
@@ -185,29 +180,34 @@ class _JoystickDirectionControlState extends State<JoystickDirectionControl> {
                         _handleJoystickMove(details);
                       }
                     },
-                    period: const Duration(milliseconds: 50), // Faster response
+                    period: const Duration(milliseconds: 50),
                     onStickDragEnd: _handleJoystickEnd,
                     includeInitialAnimation: false,
                     base: JoystickBase(
                       decoration: JoystickBaseDecoration(
-                        color: widget.isManualMode ? AppTheme.primaryGreen : AppTheme.greyContainer,
+                        color: widget.isManualMode
+                            ? AppTheme.primaryGreen
+                            : AppTheme.greyContainer,
                         drawOuterCircle: true,
                         drawInnerCircle: true,
+                        // ignore: deprecated_member_use
                         boxShadowColor: Colors.black.withOpacity(0.1),
-                       ),
+                      ),
                       arrowsDecoration: JoystickArrowsDecoration(
-      
-                        enableAnimation: false, 
+                        enableAnimation: false,
                       ),
                     ),
                     stick: JoystickStick(
                       decoration: JoystickStickDecoration(
-                        color: widget.isManualMode ? AppTheme.darkGreen : Colors.grey,
+                        color: widget.isManualMode
+                            ? AppTheme.darkGreen
+                            : Colors.grey,
+                        // ignore: deprecated_member_use
                         shadowColor: Colors.black.withOpacity(0.2),
                       ),
                     ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -234,58 +234,53 @@ class DirectionControlPad extends StatefulWidget {
 
 class _DirectionControlPadState extends State<DirectionControlPad> {
   final Set<String> _pressedDirections = {};
-  Timer? _continuousTimer;
+  Set<String> _lastSentDirections = {}; // Track what was last sent
   bool _isDisposed = false;
-  
+
   void _startDirection(String direction) {
     if (!widget.isManualMode || _isDisposed) return;
-    
+
+    // final previousDirections = Set<String>.from(_pressedDirections);
+
     setState(() {
       _pressedDirections.add(direction);
     });
-    
-    // Send immediately
-    widget.onDirectionPressed(_pressedDirections);
-    
-    // Start continuous sending if not already started
-    if (_continuousTimer == null || !_continuousTimer!.isActive) {
-      _continuousTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-        if (_isDisposed) {
-          timer.cancel();
-          return;
-        }
-        
-        if (_pressedDirections.isNotEmpty) {
-          widget.onDirectionPressed(_pressedDirections);
-        } else {
-          timer.cancel();
-          _continuousTimer = null;
-        }
-      });
+
+    // Only send if the direction set actually changed
+    if (!_setEquals(_pressedDirections, _lastSentDirections)) {
+      widget.onDirectionPressed(_pressedDirections);
+      _lastSentDirections = Set.from(_pressedDirections);
+
+      developer.log('Direction changed to: ${_pressedDirections.join("+")}');
     }
   }
-  
+
   void _stopDirection(String direction) {
     if (_isDisposed) return;
-    
+
     setState(() {
       _pressedDirections.remove(direction);
     });
-    
+
     // Send current state (might be empty set to stop)
-    widget.onDirectionPressed(_pressedDirections);
-    
-    // Stop continuous timer if no directions are pressed
-    if (_pressedDirections.isEmpty) {
-      _continuousTimer?.cancel();
-      _continuousTimer = null;
+    if (!_setEquals(_pressedDirections, _lastSentDirections)) {
+      widget.onDirectionPressed(_pressedDirections);
+      _lastSentDirections = Set.from(_pressedDirections);
+
+      developer.log(
+        'Direction changed to: ${_pressedDirections.isEmpty ? "STOP" : _pressedDirections.join("+")}',
+      );
     }
   }
-  
+
+  bool _setEquals<T>(Set<T> set1, Set<T> set2) {
+    if (set1.length != set2.length) return false;
+    return set1.containsAll(set2) && set2.containsAll(set1);
+  }
+
   @override
   void dispose() {
     _isDisposed = true;
-    _continuousTimer?.cancel();
     super.dispose();
   }
 
@@ -296,19 +291,28 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
         final containerPadding = 16.0;
         final availableWidth = constraints.maxWidth - (containerPadding * 2);
         final availableHeight = constraints.maxHeight - (containerPadding * 2);
-        
+
         final safeWidth = availableWidth - 10;
         final safeHeight = availableHeight - 10;
-      
+
         final maxButtonFromWidth = (safeWidth - 20) / 2; // 20px minimum spacing
         final maxButtonFromHeight = (safeHeight - 20) / 3; // 20px total spacing
-        
-        final buttonSize = (maxButtonFromWidth < maxButtonFromHeight ? maxButtonFromWidth : maxButtonFromHeight)
-            .clamp(60.0, 80.0); // Larger buttons for easier touch control
-        
-        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(35.0, 70.0);
-        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(20.0, 35.0);
-        
+
+        final buttonSize =
+            (maxButtonFromWidth < maxButtonFromHeight
+                    ? maxButtonFromWidth
+                    : maxButtonFromHeight)
+                .clamp(60.0, 80.0); // Larger buttons for easier touch control
+
+        final horizontalSpacing = ((safeWidth - (buttonSize * 2)) / 2).clamp(
+          35.0,
+          70.0,
+        );
+        final verticalSpacing = ((safeHeight - (buttonSize * 3)) / 2).clamp(
+          20.0,
+          35.0,
+        );
+
         return Container(
           padding: EdgeInsets.all(containerPadding),
           decoration: BoxDecoration(
@@ -319,7 +323,8 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
             child: IntrinsicHeight(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min, // Important: don't expand beyond content
+                mainAxisSize:
+                    MainAxisSize.min, // Important: don't expand beyond content
                 children: [
                   // Up Arrow
                   DirectionButton(
@@ -332,7 +337,7 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
                     size: buttonSize,
                   ),
                   SizedBox(height: verticalSpacing),
-                  
+
                   // Left, Right Arrows
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -360,7 +365,7 @@ class _DirectionControlPadState extends State<DirectionControlPad> {
                     ],
                   ),
                   SizedBox(height: verticalSpacing),
-                  
+
                   // Down Arrow
                   DirectionButton(
                     icon: Icons.keyboard_arrow_down,
@@ -434,10 +439,7 @@ class SectionTitleBar extends StatelessWidget {
         color: AppTheme.lightGrey,
         borderRadius: AppTheme.defaultBorderRadius,
       ),
-      child: Text(
-        title,
-        style: AppTheme.titleStyle,
-      ),
+      child: Text(title, style: AppTheme.titleStyle),
     );
   }
 }
@@ -498,20 +500,15 @@ class CustomSpeedSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: AppTheme.darkGreen,
             inactiveTrackColor: AppTheme.lightGreen,
             thumbColor: AppTheme.darkGreen,
-            thumbShape: const RoundSliderThumbShape(
-              enabledThumbRadius: 12.0,
-            ),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12.0),
             trackHeight: 8.0,
             // Style for the discrete markers
-            tickMarkShape: const RoundSliderTickMarkShape(
-              tickMarkRadius: 3.0,
-            ),
+            tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 3.0),
             activeTickMarkColor: AppTheme.darkGreen,
             inactiveTickMarkColor: AppTheme.lightGreen,
           ),
@@ -524,16 +521,28 @@ class CustomSpeedSlider extends StatelessWidget {
             divisions: 4, // 0, 0.25, 0.5, 0.75, 1.0
           ),
         ),
-        
+
         // Speed labels below slider
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('0%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-            Text('25%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-            Text('50%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-            Text('75%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-            Text('100%', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+            Text(
+              '25%',
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ),
+            Text(
+              '50%',
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ),
+            Text(
+              '75%',
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ),
+            Text(
+              '100%',
+              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+            ),
           ],
         ),
       ],
@@ -555,19 +564,26 @@ class StatisticRow extends StatelessWidget {
         Expanded(
           flex: 2,
           child: Text(
-            label, 
-            style: AppTheme.statLabelStyle.copyWith(fontSize: 14), // Smaller font
+            label,
+            style: AppTheme.statLabelStyle.copyWith(
+              fontSize: 14,
+            ), // Smaller font
           ),
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), // Reduced padding
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 4,
+          ), // Reduced padding
           decoration: BoxDecoration(
             color: AppTheme.lightGrey,
             borderRadius: BorderRadius.circular(10), // Smaller radius
           ),
           child: Text(
-            value, 
-            style: AppTheme.statValueStyle.copyWith(fontSize: 13), // Smaller font
+            value,
+            style: AppTheme.statValueStyle.copyWith(
+              fontSize: 13,
+            ), // Smaller font
           ),
         ),
       ],

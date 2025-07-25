@@ -1,3 +1,4 @@
+import 'package:car/services/services.dart';
 import 'package:flutter/material.dart';
 import '../models/car_data.dart';
 import '../controllers/car_controller.dart';
@@ -21,9 +22,7 @@ class ControlPanel extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(4.0),
-      decoration: BoxDecoration(
-        borderRadius: AppTheme.containerBorderRadius,
-      ),
+      decoration: BoxDecoration(borderRadius: AppTheme.containerBorderRadius),
       child: Container(
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
@@ -39,24 +38,30 @@ class ControlPanel extends StatelessWidget {
                 CustomToggleButton(
                   text: 'Manual',
                   isSelected: carData.isManualMode,
-                  onTap: () => controller.toggleMode(true),
+                  onTap: () {
+                    controller.toggleMode(true);
+                    CarCommunicationService.mode('manual');
+                  },
                 ),
                 const SizedBox(width: 8),
                 CustomToggleButton(
                   text: 'Auto',
                   isSelected: !carData.isManualMode,
-                  onTap: () => controller.toggleMode(false),
+                  onTap: () {
+                  controller.toggleMode(false);
+                  CarCommunicationService.mode('auto');
+                },
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 24),
 
             // Content based on mode
             Expanded(
-              child: carData.isManualMode 
-                ? _buildManualContent()
-                : _buildAutoContent(),
+              child: carData.isManualMode
+                  ? _buildManualContent()
+                  : _buildAutoContent(),
             ),
           ],
         ),
@@ -68,10 +73,8 @@ class ControlPanel extends StatelessWidget {
     return Column(
       children: [
         // Direction Label
-        const Center(
-          child: Text('Direction', style: AppTheme.labelStyle),
-        ),
-        
+        const Center(child: Text('Direction', style: AppTheme.labelStyle)),
+
         // Joystick Direction Controls
         Expanded(
           flex: 3,
@@ -92,10 +95,8 @@ class ControlPanel extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Speed Label
-        const Center(
-          child: Text('Speed', style: AppTheme.labelStyle),
-        ),
-        
+        const Center(child: Text('Speed', style: AppTheme.labelStyle)),
+
         const SizedBox(height: 8),
 
         // Speed Slider
@@ -109,7 +110,7 @@ class ControlPanel extends StatelessWidget {
             }
           },
         ),
-        
+
         const SizedBox(height: 8),
       ],
     );
@@ -124,14 +125,22 @@ class ControlPanel extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildAutoDropdown('Follow', ['Line', 'Circle', 'Object']),
-              _buildAutoDropdown('Count', ['Thrash cans', 'Bottles', 'Objects']),
-              _buildAutoDropdown('Feature', ['Detection', 'Recognition', 'Tracking']),
+              _buildAutoDropdown('Count', [
+                'Thrash cans',
+                'Bottles',
+                'Objects',
+              ]),
+              _buildAutoDropdown('Feature', [
+                'Detection',
+                'Recognition',
+                'Tracking',
+              ]),
             ],
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Go Button
         Container(
           width: double.infinity,
@@ -151,10 +160,7 @@ class ControlPanel extends StatelessWidget {
             ),
             child: const Text(
               'Go',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -222,8 +228,12 @@ class ControlPanel extends StatelessWidget {
 
 class StatsPanel extends StatefulWidget {
   final CarData carData;
+  final CarController controller;
 
-  const StatsPanel({super.key, required this.carData});
+  const StatsPanel({
+    super.key, 
+    required this.carData,
+    required this.controller,});
 
   @override
   State<StatsPanel> createState() => _StatsPanelState();
@@ -237,9 +247,7 @@ class _StatsPanelState extends State<StatsPanel> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(4.0),
-      decoration: BoxDecoration(
-        borderRadius: AppTheme.containerBorderRadius,
-      ),
+      decoration: BoxDecoration(borderRadius: AppTheme.containerBorderRadius),
       child: Container(
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
@@ -265,14 +273,14 @@ class _StatsPanelState extends State<StatsPanel> {
                 ),
               ],
             ),
-            
-            const SizedBox(height: 16),
-            
+
+            const SizedBox(height: 10),
+
             // Content based on selected tab
             Expanded(
-              child: _isStatsSelected 
-                ? _buildStatsContent()
-                : _buildExtraContent(),
+              child: _isStatsSelected
+                  ? _buildStatsContent()
+                  : _buildExtraContent(),
             ),
           ],
         ),
@@ -288,13 +296,13 @@ class _StatsPanelState extends State<StatsPanel> {
           value: '${widget.carData.currentSpeed.toStringAsFixed(0)} km/h',
         ),
         const SizedBox(height: 12),
-        
+
         StatisticRow(
           label: 'PWM duty cycle',
           value: '${widget.carData.pwmDutyCycle.toStringAsFixed(0)}%',
         ),
         const SizedBox(height: 12),
-        
+
         StatisticRow(
           label: 'Battery',
           value: '${widget.carData.batteryVoltage.toStringAsFixed(1)} V',
@@ -310,8 +318,9 @@ class _StatsPanelState extends State<StatsPanel> {
         _buildExtraButton(
           icon: Icons.warning,
           label: 'Emergency\nlights',
-          color: Colors.red,
-          onTap: () {
+          color: widget.controller.emergencyLightsOn ? const Color.fromARGB(255, 150, 43, 43) : Colors.red,
+          onTap: () async {
+            await widget.controller.toggleEmergencyLights();
             // Handle emergency lights
           },
         ),
@@ -319,7 +328,8 @@ class _StatsPanelState extends State<StatsPanel> {
           icon: Icons.local_parking,
           label: 'Park',
           color: Colors.yellow,
-          onTap: () {
+          onTap: () async {
+            await widget.controller.park();
             // Handle park
           },
         ),
@@ -327,8 +337,8 @@ class _StatsPanelState extends State<StatsPanel> {
           icon: Icons.star_outline,
           label: 'Crash\nassistant',
           color: Colors.purple[300]!,
-          onTap: () {
-            // Handle crash assistant
+          onTap: () async {
+            await widget.controller.toggleEmergencyLights();
           },
         ),
       ],
@@ -354,11 +364,7 @@ class _StatsPanelState extends State<StatsPanel> {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.black, width: 2),
             ),
-            child: Icon(
-              icon,
-              size: 30,
-              color: Colors.black,
-            ),
+            child: Icon(icon, size: 30, color: Colors.black),
           ),
           const SizedBox(height: 8),
           Text(

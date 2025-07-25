@@ -12,10 +12,7 @@ class CarControlApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Car Control',
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        fontFamily: 'Roboto',
-      ),
+      theme: ThemeData(primarySwatch: Colors.green, fontFamily: 'Roboto'),
       home: const CarControlScreen(),
       debugShowCheckedModeBanner: false,
     );

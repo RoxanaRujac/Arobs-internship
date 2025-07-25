@@ -28,9 +28,9 @@ class _CarControlScreenState extends State<CarControlScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -44,18 +44,18 @@ class _CarControlScreenState extends State<CarControlScreen> {
             listenable: _carController,
             builder: (context, child) {
               final carData = _carController.carData;
-              
+
               return Column(
                 children: [
                   // Connection Status
                   ConnectionStatusBar(isConnected: carData.isConnected),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Control Section
                   const SectionTitleBar(title: 'Control'),
                   const SizedBox(height: 4),
-                  
+
                   Expanded(
                     flex: 7,
                     child: ControlPanel(
@@ -73,7 +73,10 @@ class _CarControlScreenState extends State<CarControlScreen> {
 
                   Expanded(
                     flex: 3,
-                    child: StatsPanel(carData: carData),
+                    child: StatsPanel(
+                      carData: carData,
+                      controller: _carController,
+                    ),
                   ),
                 ],
               );
